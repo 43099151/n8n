@@ -22,6 +22,6 @@ USER node
 
 ENV DB_TYPE=sqlite
 ENV N8N_PORT=7860
-ENV N8N_USER_FOLDER=/home/node/.n8n
+ENV N8N_USER_FOLDER=/home/node/
 
 CMD ["/start.sh"]
