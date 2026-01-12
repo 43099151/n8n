@@ -4,11 +4,11 @@
 # 配置区域
 # ============================================================
 # Rclone 配置 (自动读取环境变量)
-export RCLONE_CONFIG_REMOTE_TYPE=s3
-export RCLONE_CONFIG_REMOTE_PROVIDER=Cloudflare
-export RCLONE_CONFIG_REMOTE_ACCESS_KEY_ID=75e72cddecc51b32deab13873c967000
-export RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY=$R2_SECRET_ACCESS_KEY
-export RCLONE_CONFIG_REMOTE_ENDPOINT=https://6e84f688bfe062834470070a2d946be5.r2.cloudflarestorage.com
+export RCLONE_CONFIG_REMOTE_TYPE="s3"
+export RCLONE_CONFIG_REMOTE_PROVIDER="Cloudflare"
+export RCLONE_CONFIG_REMOTE_ACCESS_KEY_ID="75e72cddecc51b32deab13873c967000"
+export RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+export RCLONE_CONFIG_REMOTE_ENDPOINT="https://6e84f688bfe062834470070a2d946be5.r2.cloudflarestorage.com"
 
 # 路径定义
 REMOTE_PATH="remote:hf--backups/n8n"
