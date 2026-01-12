@@ -41,6 +41,6 @@ PID=$!
 
 # 3. 循环备份 (每 1 小时)
 while kill -0 $PID >/dev/null 2>&1; do
-    sleep 300 & wait $!
+    sleep 28800 & wait $!
     run_backup
 done
