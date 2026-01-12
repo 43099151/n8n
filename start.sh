@@ -1,102 +1,46 @@
 #!/bin/sh
 
-# ============================================================
-# 配置区域
-# ============================================================
-# Rclone 配置
+# ================= 配置区域 =================
+# Rclone (Secret Key 建议从 Hugging Face 环境变量读取)
 export RCLONE_CONFIG_REMOTE_TYPE="s3"
 export RCLONE_CONFIG_REMOTE_PROVIDER="Cloudflare"
 export RCLONE_CONFIG_REMOTE_ACCESS_KEY_ID="75e72cddecc51b32deab13873c967000"
-export RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 export RCLONE_CONFIG_REMOTE_ENDPOINT="https://6e84f688bfe062834470070a2d946be5.r2.cloudflarestorage.com"
+export RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 
 # 路径定义
-REMOTE_PATH="remote:hf--backups/n8n"
-# 直接写死路径，排除变量拼接带来的换行符问题
-LIVE_DB_PATH="/home/node/.n8n/database.sqlite"
-TEMP_BACKUP_DIR="/tmp/n8n_backup"
-TEMP_BACKUP_PATH="$TEMP_BACKUP_DIR/database.sqlite"
+DB_PATH="/home/node/.n8n/database.sqlite"
+REMOTE_URL="remote:hf--backups/n8n/database.sqlite"
+TEMP_BACKUP="/tmp/database.sqlite"
 
-mkdir -p $TEMP_BACKUP_DIR
-
-# ============================================================
-# 调试函数：打印环境信息
-# ============================================================
-debug_info() {
-    echo "================ DEBUG INFO ================"
-    echo "Current User: $(whoami)"
-    echo "Checking directory: /home/node/.n8n/"
-    if [ -d "/home/node/.n8n/" ]; then
-        echo "Directory exists. Contents:"
-        ls -la /home/node/.n8n/
+# ================= 核心函数 =================
+run_backup() {
+    if [ -f "$DB_PATH" ]; then
+        echo "[$(date)] Backing up..."
+        # 使用 sqlite3 生成快照以防止数据库锁死
+        sqlite3 "$DB_PATH" ".backup '$TEMP_BACKUP'" && \
+        rclone copyto "$TEMP_BACKUP" "$REMOTE_URL" && \
+        echo "[$(date)] Backup success."
     else
-        echo "ERROR: Directory /home/node/.n8n/ DOES NOT EXIST!"
-        echo "Searching for database.sqlite in entire /home/node/:"
-        find /home/node/ -name "database.sqlite"
-    fi
-    echo "Target DB Path: [$LIVE_DB_PATH]"
-    if [ -f "$LIVE_DB_PATH" ]; then
-        echo "CHECK RESULT: File found!"
-    else
-        echo "CHECK RESULT: File NOT found!"
-    fi
-    echo "============================================"
-}
-
-# ============================================================
-# 备份函数
-# ============================================================
-perform_backup() {
-    echo "[$(date)] Starting backup process..."
-    
-    # 每次备份前运行一次调试检查
-    debug_info
-
-    if [ -f "$LIVE_DB_PATH" ]; then
-        sqlite3 "$LIVE_DB_PATH" ".backup '$TEMP_BACKUP_PATH'"
-        if [ $? -eq 0 ]; then
-            echo "[$(date)] SQLite snapshot created."
-            rclone copy "$TEMP_BACKUP_PATH" "$REMOTE_PATH"
-            echo "[$(date)] Upload to R2 completed."
-        else
-            echo "[$(date)] ERROR: Failed to create snapshot."
-        fi
-    else
-        echo "[$(date)] Database not found, skipping backup."
+        echo "[$(date)] Database not ready."
     fi
 }
 
-cleanup() {
-    echo "!!! Received termination signal. Performing final backup..."
-    perform_backup
-    echo "Stopping n8n..."
-    kill -TERM "$N8N_PID" 2>/dev/null
-    wait "$N8N_PID"
-    exit 0
-}
+# 信号捕获：容器停止时执行最后一次备份
+trap 'echo "Stopping..."; run_backup; kill -TERM $PID; wait $PID; exit 0' SIGTERM SIGINT
 
-# ============================================================
-# 主流程
-# ============================================================
-trap cleanup SIGTERM SIGINT
+# ================= 主流程 =================
+# 1. 尝试从远程恢复数据
+echo "Restoring data..."
+rclone copyto "$REMOTE_URL" "$DB_PATH" 2>/dev/null
 
-echo "Checking for remote backup..."
-rclone copy "$REMOTE_PATH/database.sqlite" /home/node/.n8n/
-
-if [ -f "$LIVE_DB_PATH" ]; then
-    echo "Data restored from R2."
-else
-    echo "No remote backup found. Starting fresh."
-fi
-
+# 2. 启动 n8n
 echo "Starting n8n..."
 n8n start &
-N8N_PID=$!
-echo "n8n started with PID $N8N_PID"
+PID=$!
 
-# 循环备份 (为了调试，暂时改为 10 分钟一次，避免您等太久)
-while kill -0 $N8N_PID >/dev/null 2>&1; do
-    sleep 300 & 
-    wait $!
-    perform_backup
+# 3. 循环备份 (每 1 小时)
+while kill -0 $PID >/dev/null 2>&1; do
+    sleep 300 & wait $!
+    run_backup
 done
