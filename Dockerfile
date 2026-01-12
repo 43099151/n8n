@@ -8,7 +8,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # 2. 安装 n8n
-RUN npm install -g n8n
+RUN npm install -g n8n --omit=dev && \
+    npm cache clean --force
 
 # 3. 权限设置
 RUN mkdir -p /home/node/.n8n && \
