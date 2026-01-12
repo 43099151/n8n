@@ -16,7 +16,7 @@ RUN mkdir -p /home/node/.n8n && \
 
 # 4. 复制脚本
 COPY start.sh /start.sh
-RUN chmod +x /start.sh
+RUN sed -i 's/\r$//' /start.sh && chmod +x /start.sh
 
 USER node
 
